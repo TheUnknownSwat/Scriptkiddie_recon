@@ -1,8 +1,17 @@
 # Quick Start
 
+## Quick Start (3 commands)
 
+After completing the [Installation](#installation) steps below, start the app with:
 
-## Scan the built-in demo site
+```bash
+bun run db:push    # one-time: creates the SQLite database + tables
+bun run dev        # starts the Next.js dev server on http://localhost:3000
+```
+
+Then open **http://localhost:3000** in your browser.
+
+### Scan the built-in demo site
 
 
 
