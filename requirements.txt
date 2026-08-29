@@ -1,0 +1,21 @@
+# WebRecon-Airgap Python dependencies.
+#
+# Install with:  pip install -r requirements.txt
+# Then run:      playwright install chromium
+#
+# These are also installed automatically by the production build script
+# (.zscripts/python-runtime-build.sh) when present.
+#
+# Pinned to minor versions for reproducibility. Update with caution —
+# newer Playwright versions may require newer browser binaries.
+
+playwright>=1.40,<2.0
+# cryptography is used by the SSL/TLS inspector to decode the full certificate
+# chain (subject/issuer/validity/SAN/signature algorithm for every cert, not
+# just the leaf). Without it the scanner falls back to a stdlib-only path
+# that decodes just the leaf with less detail. Strongly recommended.
+cryptography>=42.0
+# python-dotenv is used by some optional helper scripts. The scanner itself
+# uses stdlib only (urllib, json, asyncio) so it works in airgapped envs
+# without this — but the manual-login mini-service benefits from it.
+python-dotenv>=1.0,<2.0
