@@ -1,8 +1,8 @@
-\## Quick Start
+# Quick Start
 
 
 
-\### Scan the built-in demo site
+## Scan the built-in demo site
 
 
 
