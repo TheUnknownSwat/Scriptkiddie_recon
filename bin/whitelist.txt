@@ -1,0 +1,93 @@
+# Reference header list for WebRecon-Airgap.
+# One entry per line. Lines starting with '#' are ignored.
+#
+# This file is a REFERENCE / POLICY, not a filter. Every response header
+# is reported in Table A; headers NOT in this list appear in Table B
+# (Potential Anomalies) for manual review.
+#
+# ─────────────────────────────────────────────────────────────────────
+# THREE LINE FORMATS ARE SUPPORTED:
+# ─────────────────────────────────────────────────────────────────────
+#
+#   1. Header-Name
+#      The header is expected to be PRESENT. Any value is acceptable.
+#      Use this for headers where presence is the only requirement.
+#
+#   2. Header-Name: expected-value
+#      The header is expected to be present AND have a value containing
+#      the specified substring (case-insensitive). Use this to enforce
+#      specific security postures. Examples:
+#          Strict-Transport-Security: max-age=31536000
+#          X-Content-Type-Options: nosniff
+#          X-Frame-Options: DENY
+#
+#   3. Header-Name: value1|value2|value3
+#      The header is expected to be present AND have a value containing
+#      AT LEAST ONE of the pipe-separated alternatives. Use this when
+#      multiple values are equally acceptable. Example:
+#          X-Frame-Options: DENY|SAMEORIGIN
+#      (both DENY and SAMEORIGIN are valid clickjacking mitigations)
+#
+# ─────────────────────────────────────────────────────────────────────
+# HOW MATCHING WORKS (intentionally lenient):
+# ─────────────────────────────────────────────────────────────────────
+# The tool uses case-insensitive SUBSTRING matching, not exact equality.
+# This means 'Strict-Transport-Security: max-age=31536000' will match
+# any of:
+#     max-age=31536000
+#     max-age=31536000; includeSubDomains
+#     max-age=31536000; includeSubDomains; preload
+# This avoids false positives when the server adds extra directives.
+# For headers where you need EXACT matching, audit headers_raw.json
+# manually after the scan.
+#
+# ─────────────────────────────────────────────────────────────────────
+# WHAT THE REPORT SHOWS:
+# ─────────────────────────────────────────────────────────────────────
+# Table A  — every captured header, with columns for actual value,
+#            expected value, and a Yes/No/N-A match badge.
+# Table B  — headers NOT in this reference list (potential anomalies).
+# Table C  — headers IN this reference list but with values that DON'T
+#            match the declared expected value (policy violations).
+# ─────────────────────────────────────────────────────────────────────
+
+# === Security headers WITH expected values (policy enforcement) ========
+# HSTS: require at least 1 year max-age. Many orgs also enable
+# includeSubDomains and preload, but we only enforce the baseline here.
+Strict-Transport-Security: max-age=31536000
+
+# CSP: require a non-trivial policy. 'default-src' is the baseline
+# directive; any CSP without it is effectively permissive. Adjust this
+# to match your organisation's CSP baseline.
+Content-Security-Policy: default-src
+
+# X-Content-Type-Options: must be 'nosniff' (the only valid value).
+X-Content-Type-Options: nosniff
+
+# X-Frame-Options: DENY or SAMEORIGIN are both acceptable. ALLOW-FROM
+# is deprecated and should NOT be considered acceptable.
+X-Frame-Options: DENY|SAMEORIGIN
+
+# Referrer-Policy: any of these is acceptable. 'no-referrer' is most
+# privacy-protective; 'strict-origin-when-downgrade' is the modern
+# default and a reasonable minimum.
+Referrer-Policy: no-referrer|strict-origin-when-downgrade|same-origin|strict-origin
+
+# === Security headers WITHOUT expected values (presence-only) =========
+# These headers are deprecated, browser-specific, or have values that
+# vary too much to enforce. We only check that they're present.
+X-XSS-Protection
+Permissions-Policy
+
+# === Operational headers (no expected value; presence-only) ===========
+# These are commonly present but their values vary by deployment. We
+# list them so they don't appear as "anomalies" in Table B.
+Cache-Control
+Set-Cookie
+Server
+X-Powered-By
+Date
+Content-Type
+Content-Length
+ETag
+Vary

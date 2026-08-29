@@ -1,0 +1,11 @@
+{
+  "name": "manual-login-service",
+  "version": "1.0.0",
+  "description": "Playwright headed browser service for manual login + session capture",
+  "scripts": {
+    "dev": "bun --hot index.ts"
+  },
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}

@@ -1,0 +1,84 @@
+# =============================================================================
+# Editable cipher / TLS-protocol security policy
+# =============================================================================
+#
+# This is the SINGLE source of truth for what the scanner considers a weak
+# cipher suite or weak TLS protocol version. BOTH consumers read from this
+# file:
+#   1. The negotiated-cipher check (flags the one cipher the server picked).
+#   2. The SSL cipher-suite probe enumeration (flags every cipher the server
+#      will accept).
+#
+# ----------------------------------------------------------------------------
+# HOW TO ADD A NEWLY-DISCLOSED CIPHER VULNERABILITY
+# ----------------------------------------------------------------------------
+# Append one line to this file. No code changes. No scanner.py edit. The
+# change takes effect on the next scan.
+#
+# Example: a new attack on FOO ciphers is announced as CVE-2027-12345.
+# Append:
+#     FOO  | NewAttack CVE-2027-12345            | high
+# and every accepted cipher whose name contains "FOO" will be flagged red
+# in the SSL/TLS tab with that reason.
+#
+# ----------------------------------------------------------------------------
+# LINE FORMAT
+# ----------------------------------------------------------------------------
+#   PATTERN | REASON | SEVERITY
+#
+#   PATTERN  - For ciphers: a substring matched CASE-INSENSITIVELY against
+#              the OpenSSL cipher suite name reported by the server
+#              (e.g. "RC4" matches "ECDHE-RSA-RC4-SHA", "3DES" matches
+#              "DES-CBC3-SHA", "NULL" matches "NULL-SHA256").
+#              For protocols: use the "@TLS" prefix (see below).
+#   REASON   - Short text shown in the UI explaining why it is weak.
+#              CVE ids / attack names are encouraged.
+#   SEVERITY - One of: high | medium | low
+#
+# ----------------------------------------------------------------------------
+# PROTOCOL-VERSION ENTRIES
+# ----------------------------------------------------------------------------
+# Weak TLS/SSL protocol versions use a "@TLS" prefix on the PATTERN field to
+# distinguish them from cipher substrings. The value is the protocol string
+# as returned by Python's ssl module (e.g. "TLSv1.3", "TLSv1", "SSLv3").
+#
+# ----------------------------------------------------------------------------
+# Lines starting with "#" are comments. Blank lines are ignored.
+# =============================================================================
+
+# --- Weak cipher substrings --------------------------------------------------
+# NOTE: more specific patterns MUST come before less specific ones. e.g.
+# CBC3/3DES before DES, otherwise "DES-CBC3-SHA" (Triple-DES) matches "DES"
+# first and shows the wrong reason. Matching is first-match-wins, top-down.
+NULL     | No encryption at all                     | high
+EXPORT   | Export-grade, sub-512-bit (1990s US law) | high
+RC4      | RC4 stream biases (AlFardan et al. 2013) | high
+CBC3     | Triple-DES via 3-key CBC (Sweet32, CVE-2016-2183) | medium
+3DES     | Sweet32 birthday attack (CVE-2016-2183)  | medium
+RC2      | Legacy block cipher, cryptographically broken | medium
+DES      | 56-bit key, brute-forceable in hours     | high
+MD5      | Collision-prone message digest           | medium
+PSK      | Pre-shared key; deployment-specific, review manually | low
+# SHA-1 message digest (cipher integrity). Uses @RE (regex) mode anchored at
+# end-of-string ("-SHA$") so it matches SHA-1 suites (AES128-SHA,
+# ECDHE-RSA-AES128-SHA) but NOT SHA-256/SHA-384 (a plain substring "SHA" would
+# also match -SHA256/-SHA384 and every TLS 1.3 suite, which is wrong).
+@RE -SHA$ | SHA-1 message digest (collision-prone, deprecated for TLS integrity) | medium
+
+# --- Weak TLS / SSL protocol versions ----------------------------------------
+@TLS SSLv2   | Broken protocol (DROWN, CVE-2016-0800)       | high
+@TLS SSLv3   | POODLE attack (CVE-2014-3566)                | high
+@TLS TLSv1   | Deprecated - no forward secrecy, BEAST risk   | high
+@TLS TLSv1.1 | Deprecated by PCI-DSS (June 2018)            | medium
+
+# =============================================================================
+# OPTIONAL ADDITIONAL CHECKS (commented out - uncomment to enable)
+# =============================================================================
+# CBC mode ciphers are vulnerable to padding-oracle / Lucky13 / BEAST style
+# attacks when not paired with a properly implemented constant-time decrypt.
+# Uncomment to flag every CBC cipher for manual review:
+# CBC      | CBC padding-oracle risk (Lucky13/BEAST)   | medium
+#
+# ANONYMOUS key exchange (no authentication - MITM possible):
+# ADH      | Anonymous DH - no server authentication    | high
+# AECDH    | Anonymous ECDH - no server authentication  | high

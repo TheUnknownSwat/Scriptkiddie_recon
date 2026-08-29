@@ -1,0 +1,112 @@
+# Directory brute-force wordlist for WebRecon-Airgap.
+# One path per line. Lines starting with '#' are ignored.
+# The scanner tries each path against the target's root domain.
+# If the LLM is configured, it reorders this list based on detected
+# technology (e.g. WordPress → wp-admin first, Tomcat → manager first).
+#
+# To add your own paths, just append them below. For a full engagement,
+# replace this with a larger list (e.g. SecLists common.txt from
+# https://github.com/danielmiessler/SecLists/tree/master/Discovery/Web-Content
+
+# --- Admin panels ---
+admin
+administrator
+admin.php
+admin.html
+admin/login
+
+# --- Config files ---
+config
+config.php
+config.json
+config.yml
+configuration
+
+# --- Version control + env ---
+.git
+.git/config
+.git/HEAD
+.env
+.env.local
+.env.production
+
+# --- Backups ---
+backup
+backup.zip
+backup.tar.gz
+backup.sql
+db.sql
+
+# --- Info disclosure ---
+phpinfo
+phpinfo.php
+info.php
+test.php
+server-status
+server-info
+
+# --- WordPress ---
+wp-admin
+wp-login.php
+wp-config.php
+wp-content
+wp-admin/admin-ajax.php
+
+# --- API endpoints ---
+api
+api/v1
+api/v2
+api/users
+api/admin
+
+# --- GraphQL ---
+graphql
+graphiql
+
+# --- API documentation ---
+swagger
+swagger.json
+swagger-ui
+api-docs
+openapi.json
+
+# --- Standard files ---
+robots.txt
+sitemap.xml
+security.txt
+
+# --- Server config ---
+.htaccess
+.htpasswd
+web.config
+
+# --- Debug / actuator ---
+console
+debug
+trace
+actuator
+actuator/health
+
+# --- Tomcat manager ---
+manager
+manager/html
+manager/status
+
+# --- Auth pages ---
+login
+signin
+register
+signup
+
+# --- File directories ---
+upload
+uploads
+files
+download
+export
+
+# --- Database admin tools ---
+phpmyadmin
+pma
+mysql
+adminer

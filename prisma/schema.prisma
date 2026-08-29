@@ -1,0 +1,179 @@
+// Prisma schema for WebRecon-Airgap web UI.
+//
+// The Scan model mirrors a single execution of bin/scanner.py. Each row
+// stores the CLI args used, the runtime status, and the filesystem path
+// to the generated report + evidence. The actual scan output (report.html,
+// execution_trail.jsonl, evidence/*) lives on disk under scan-output/<id>/
+// and is served by API routes — we deliberately do NOT store large blobs
+// in SQLite.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  // DATABASE_URL is read from .env. Prisma resolves relative paths from
+  // the directory containing this schema.prisma file (i.e. prisma/), NOT
+  // from process.cwd(). So `file:./db/webrecon.db` would create
+  // `prisma/db/webrecon.db` — which is NOT where the Next.js app expects
+  // it. To put the DB at <project-root>/db/webrecon.db, we use
+  // `file:../db/webrecon.db` (one level up from prisma/).
+  // The .env file should set: DATABASE_URL=file:../db/webrecon.db
+  url      = env("DATABASE_URL")
+}
+
+model Scan {
+  // cuid() gives us URL-safe unique IDs that double as filesystem dir names.
+  id        String   @id @default(cuid())
+
+  // --- Title / label (user-editable, shown in dashboard) ---
+  // Optional. If empty, the dashboard shows the targetUrl instead.
+  title     String?
+
+  // --- Target + scope (mirrors --url, --depth, --scope, --exclude) ---
+  targetUrl    String
+  depth        Int      @default(3)
+  scopePatterns String  @default("")   // comma-separated, same as CLI
+  excludePatterns String @default("")  // comma-separated, same as CLI
+  ignoreRobots Boolean  @default(false)
+  allowExternal Boolean @default(false)
+
+  // --- Rate limiting (mirrors --delay, --concurrency) ---
+  delayMs      Int      @default(500)
+  concurrency  Int      @default(1)
+
+  // --- Login (mirrors --login-* flags; password is NEVER stored) ---
+  loginUrl     String?
+  loginUser    String?
+  // loginPassword is intentionally NOT persisted. We pass it to the
+  // subprocess via env var (WEBRECON_LOGIN_PASSWORD) at spawn time and
+  // discard it immediately. This is a defence-in-depth measure: even if
+  // the SQLite file is exfiltrated, no credentials are leaked.
+  loginSucceeded Boolean?
+
+  // --- Reference files (mirrors --headers, --payloads) ---
+  // We store the file CONTENTS rather than paths so the scan is
+  // reproducible even if the original file is moved/deleted.
+  headersFileContent  String?
+  payloadsFileContent String?
+  wordlistFileContent  String?  // per-scan override of bin/wordlist.txt (directory brute-force)
+  weakCiphersFileContent String? // per-scan override of bin/weak_ciphers.txt (TLS cipher/protocol policy)
+
+  // --- LLM-assisted scanning (mirrors --llm-assist) ---
+  // When true, the scanner asks the LLM to analyse crawl results mid-scan
+  // and suggest priority inputs + custom payloads + additional URLs.
+  // The LLM NEVER executes anything — it only advises.
+  llmAssist Boolean @default(false)
+
+  // --- AI Content Analysis during scan (mirrors --llm-interesting) ---
+  // When true, after the crawl (+ dir-brute re-crawl) the scanner re-visits
+  // EVERY in-scope discovered page with the authenticated browser and asks
+  // the LLM, one page at a time, for interesting content (creds, hidden
+  // endpoints, dev comments, logic flaws). No page cap; 1 LLM call per page,
+  // so OFF by default.
+  llmInteresting Boolean @default(false)
+
+  // --- LLM vulnerability analysis (mirrors --llm-analyze) ---
+  // When true, after active scanning the LLM reviews the findings + raw
+  // HTTP responses to detect vulnerabilities the regex missed, classify
+  // findings into OWASP categories, and identify likely false positives.
+  llmAnalyze Boolean @default(false)
+
+  // --- Custom HTTP headers (mirrors --custom-headers) ---
+  // JSON string of key-value pairs sent with EVERY request during the scan.
+  // Use for: CSRF tokens, Authorization headers, custom auth cookies that
+  // the login flow doesn't capture, internal API keys, etc.
+  // Example: '{"X-CSRF-Token":"abc123","X-Client":"pentest"}'
+  customHeaders String?
+
+  // --- Access Control Testing (mirrors --test-access-control) ---
+  // When true, after the scan the scanner clears all cookies and re-visits
+  // each in-scope URL to test for Broken Access Control (A01) via forced
+  // browsing. Most useful when combined with login.
+  testAccessControl Boolean @default(false)
+
+  // --- Manual Browser Login (mirrors --load-state) ---
+  // When true, the scanner loads a session state JSON file (cookies +
+  // localStorage) captured via the "Launch Browser to Login" button.
+  // The state file path is stored in manualLoginStatePath.
+  manualLoginState Boolean @default(false)
+  manualLoginStatePath String?
+
+  // --- Deep Logic Testing (mirrors --deep-logic) ---
+  // EXPERIMENTAL: When true, the scanner runs business logic tests
+  // (happy-path mutation) after active scanning. Disabled by default.
+  deepLogic Boolean @default(false)
+
+  // --- File Upload Testing (mirrors --test-file-upload) ---
+  // When true, the scanner exercises <input type=file> endpoints with
+  // extension-bypass / MIME-spoof / polyglot / SVG-HTML-XSS probes
+  // (A05:2025 Injection). Accepted dangerous uploads surface as findings;
+  // the full attempt table + landing URLs go to the Uploads tab.
+  testFileUpload   Boolean  @default(false)
+  uploadBaseFilename String?
+
+  // --- Session Expiry ---
+  // When the scanner detects a session expiry (401/302/login page),
+  // it pauses + sets pausedForRelogin=true. The UI shows a banner with
+  // "Launch Browser to Re-login" + "Resume Scan" buttons.
+  pausedForRelogin Boolean @default(false)
+  pauseReason String?
+
+  // --- Runtime status ---
+  // status: 'pending' (queued, not started) | 'running' | 'completed' | 'failed' | 'interrupted'
+  status    String   @default("pending")
+  exitCode  Int?
+  errorMsg  String?  // populated if status == 'failed'
+
+  // --- Result summary (populated on completion) ---
+  findingsCount     Int @default(0)
+  findingsHigh      Int @default(0)
+  findingsMedium    Int @default(0)
+  findingsLow       Int @default(0)
+  urlsCrawled       Int @default(0)
+  inputsDiscovered  Int @default(0)
+  interrupted       Boolean @default(false)
+
+  // --- Timestamps ---
+  createdAt DateTime @default(now())
+  startedAt DateTime?
+  endedAt   DateTime?
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+/**
+ * Application-wide settings (singleton row).
+ *
+ * Stores the LLM configuration (endpoint, API key, model, max tokens)
+ * and the default whitelist + payloads content. These are used when a
+ * scan doesn't override them.
+ *
+ * We use a singleton pattern (id = 'default') rather than a key-value
+ * table because the settings are a small, fixed set of fields. This
+ * makes the TypeScript types cleaner and the UI simpler.
+ */
+model Setting {
+  id              String   @id @default("default")
+
+  // --- LLM Configuration ---
+  // The LLM is used for: (1) executive summary generation, (2) the AI
+  // Assistant chat where the pentester asks questions about findings.
+  // The LLM NEVER makes scanning decisions — it only advises.
+  llmBaseUrl      String?  // e.g. https://api.openai.com/v1/chat/completions
+  llmApiKey       String?  // stored in plaintext (SQLite is local-only in airgap)
+  llmModel        String   @default("gpt-4o-mini")
+  llmMaxTokens    Int      @default(4000) // max tokens sent to LLM per request
+
+  // --- Default Reference Files ---
+  // These are pre-filled into the New Scan form's whitelist/payloads
+  // textareas. The engineer can override per-scan.
+  defaultWhitelist  String?  // contents of whitelist.txt
+  defaultPayloads   String?  // contents of payloads.txt
+  defaultWordlist   String?  // contents of wordlist.txt (directory brute-force)
+  defaultWeakCiphers String? // contents of weak_ciphers.txt (TLS cipher/protocol policy)
+
+  updatedAt       DateTime @updatedAt
+}
