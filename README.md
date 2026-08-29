@@ -1,9 +1,6 @@
 # Scriptkiddie_recon
 Offline web security scanner with AI-assisted analysis via local LLM or cloud models
 
-
-# ScriptKiddie-Recon
-
 **An offline, AI-assisted web security scanner for pentesters.**
 
 The tool crawls a target website, captures headers, inspects SSL/TLS (certificate
